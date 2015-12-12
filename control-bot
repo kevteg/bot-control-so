@@ -20,7 +20,7 @@ class conbot:
         ch.setFormatter(formatter)
         root.addHandler(ch)
         logger = logging.getLogger(__name__)
-        self.ruta_actual = "/home/keeeevin/"
+        self.ruta_actual = "/home/keeeevin"
         self.comandos = {'start': self.start,
                     'help': self.help,
                     'cd': self.cd,
@@ -123,7 +123,7 @@ class conbot:
         archivos    = subprocess.Popen("find " + ruta + " -mindepth 1 -maxdepth 1 -type f", shell=True, stdout=subprocess.PIPE).stdout.read()
         lista_directorios = directorios.split('\n')
         #Ir hacia atrás
-        lista_directorios.append('..')
+        lista_directorios.append(telegram.Emoji.BACK_WITH_LEFTWARDS_ARROW_ABOVE + ' .. ' + telegram.Emoji.BACK_WITH_LEFTWARDS_ARROW_ABOVE)
         lista_archivos    = archivos.split('\n')
         lista = []
         lista.append(lista_directorios)
