@@ -4,6 +4,7 @@
 import telegram
 import logging
 import sys
+import subprocess
 
 class conbot:
     def __init__ (self):
@@ -19,10 +20,10 @@ class conbot:
         ch.setFormatter(formatter)
         root.addHandler(ch)
         logger = logging.getLogger(__name__)
+        self.ruta_actual = "/home/keeeevin/"
         self.comandos = {'start': self.start,
                     'help': self.help,
                     'cd': self.cd,
-                    'ls': self.ls,
                     'pwd': self.pwd,
                     'comando': self.comando,
                     'sudo': self.sudo}
@@ -38,6 +39,7 @@ class conbot:
                                                 sudo - Guardar contraseña de super usuario\
                                                 "
         self.main()
+
     '''
     brief: Método inicial que crea el handler de comandos
     '''
@@ -83,14 +85,13 @@ class conbot:
            bot:        bot que esta en funcionamiento
     '''
     def cd(self, bot, update):
-        bot.sendMessage(update.message.chat_id, text=update.message.text)
-    '''
-    brief: Método que envia una respuesta al update
-    param: update:     actualización que llamo el comando
-           bot:        bot que esta en funcionamiento
-    '''
-    def ls(self, bot, update):
-        bot.sendMessage(update.message.chat_id, text=update.message.text)
+        chat_id = update.message.chat_id
+        mess_id = update.message.message_id
+        reply_markup = telegram.ReplyKeyboardMarkup(self.crearListaOpcionesCd(self.ruta_actual), one_time_keyboard = True, selective = True)
+        bot.sendMessage(chat_id=chat_id, text="Seleciona el directorio al que quieres ir \
+        o el archivo que quieres descargar",reply_to_message_id=mess_id, reply_markup=reply_markup)
+
+
     '''
     brief: Método que envia una respuesta al update
     param: update:     actualización que llamo el comando
@@ -112,6 +113,54 @@ class conbot:
     '''
     def sudo(self, bot, update):
         bot.sendMessage(update.message.chat_id, text=update.message.text)
+    '''
+    brief: Método que retorna una lista de directorios y archivos de la ubicación ruta
+    param: ruta: posición de que retornara
+
+    '''
+    def contenidoRuta(self, ruta):
+        directorios = subprocess.Popen("find " + ruta + " -mindepth 1 -maxdepth 1 -type d", shell=True, stdout=subprocess.PIPE).stdout.read()
+        archivos    = subprocess.Popen("find " + ruta + " -mindepth 1 -maxdepth 1 -type f", shell=True, stdout=subprocess.PIPE).stdout.read()
+        lista_directorios = directorios.split('\n')
+        #Ir hacia atrás
+        lista_directorios.append('..')
+        lista_archivos    = archivos.split('\n')
+        lista = []
+        lista.append(lista_directorios)
+        lista.append(lista_archivos)
+        #Para eliminar el ./ y la ruta antes de cada nombre de carpeta/archivo que retorna find. Así se limpia un poco la data
+        for indice_lista in range(len(lista)):
+            for dir, indice in zip(lista[indice_lista], range(len(lista[indice_lista]))):
+                if ruta + '/' in lista[indice_lista][indice]:
+                    lista[indice_lista][indice] = lista[indice_lista][indice].replace(ruta + '/', '')
+            #.Archivos ocultos de último
+            lista[indice_lista].sort()
+            lista[indice_lista].reverse()
+        return lista
+
+    def crearListaOpcionesCd(self, ruta):
+        markup_opc = []
+        grupos = 3 #grupos de tres elementos (Funciona a partir de 3    )
+        lista_data = [[telegram.Emoji.FILE_FOLDER + " Directorios " + telegram.Emoji.FILE_FOLDER], [telegram.Emoji.NEWSPAPER + " Archivos " + telegram.Emoji.NEWSPAPER]]
+        lista_archivos_directorios = self.contenidoRuta(ruta)
+        pos_lista_in = 0
+
+        for indice in range(len(lista_data)):
+            markup_opc.append(lista_data[indice])
+            indice_individual = 0
+            for indice_grupo in range( int(round(float(len(lista_archivos_directorios[indice])) / grupos))):
+                markup_opc.append(list())
+                #pos_lista_in += 1
+                for indice_lis_dir in range(grupos):
+                    if indice_individual <= len(lista_archivos_directorios[indice]):
+                        markup_opc[len(markup_opc) - 1].append(lista_archivos_directorios[indice][indice_individual].decode('utf-8'))
+                    indice_individual += 1
+
+
+        return markup_opc
+
+
+
     '''
     brief: Método que envia una respuesta al update
     param: update:     actualización que llamo el comando
