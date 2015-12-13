@@ -20,7 +20,7 @@ class conbot:
         ch.setFormatter(formatter)
         root.addHandler(ch)
         logger = logging.getLogger(__name__)
-        self.ruta_actual = "/home/keeeevin"
+        self.ruta_defecto = "/home/keeeevin"
         self.comandos = {'start': self.start,
                     'help': self.help,
                     'cd': self.cd,
@@ -38,6 +38,7 @@ class conbot:
                                                 comando - Ejecutar un comando\
                                                 sudo - Guardar contraseña de super usuario\
                                                 "
+        self.atras = telegram.Emoji.BACK_WITH_LEFTWARDS_ARROW_ABOVE + '(..)' + telegram.Emoji.BACK_WITH_LEFTWARDS_ARROW_ABOVE
         self.main()
 
     '''
@@ -73,25 +74,129 @@ class conbot:
     def help(self, bot, update):
         self.enviarMensaje(bot, update, self.mensaje_ayuda)
     '''
+    brief: Método que verifica que respuesta de un usuario este en opciones a escoger
+    param: chat_id:     id del chat
+           message:     mensaje que envia usuario
+    return: -1 si no esta el mensaje o si usuario no ha usado cd
+             0 si es directorio
+             1 si es archivo
+    '''
+    def messageIsDirArc(self, chat_id, message):
+        file = open("ruta_chats", "a+")
+        if(str(chat_id) + "\n" in file):
+            opciones_ruta = self.contenidoRuta(self.getPwd(chat_id))
+            for indice in range(len(opciones_ruta)):
+                for objeto in opciones_ruta[indice]:
+                    if message == objeto:
+                        return indice
+        return -1
+
+
+    '''
     brief: Método que envia una respuesta al update
     param: update:     actualización que llamo el comando
            bot:        bot que esta en funcionamiento
     '''
     def echo(self, bot, update):
-        bot.sendMessage(update.message.chat_id, text=update.message.text)
+        chat_id = update.message.chat_id
+        mess_id = update.message.message_id
+        message = update.message.text.encode('utf-8')
+        if(self.messageIsDirArc(chat_id, message) == 0):
+            if ' ' in message:
+                message = message.replace(' ', '\ ')
+
+            if message != self.atras:
+                nueva_ruta = self.getPwd(chat_id) + '/' + message
+            else:
+                directorios = (self.getPwd(chat_id)).split('/')
+                nueva_ruta = ''
+                for indice in range(1, (len(directorios) - 1)):
+                    print directorios[indice]
+                    nueva_ruta += '/' + directorios[indice]
+
+            self.chdir(chat_id, "ruta_chats", nueva_ruta)
+            reply_markup = telegram.ReplyKeyboardMarkup(self.crearListaOpcionesCd(nueva_ruta), one_time_keyboard = True, selective = True)
+            bot.sendMessage(chat_id=chat_id, text="Su nueva ruta es: " + nueva_ruta,reply_to_message_id=mess_id, reply_markup=reply_markup)
+        elif(self.messageIsDirArc(chat_id, message) == 1):
+            self.sendFile(chat_id, message)
+        else:
+            bot.sendMessage(update.message.chat_id, text=update.message.text)
+
+    '''
+    brief: Método que cambia o agrega el directorio del usuario chat_id
+    param: chat_id:     chat_id a quien se cambiará la ruta
+           file_name:    nombre archivo de los id
+           ruta_del_id: ruta a asociar con el chat_id
+    '''
+    def chdir(self, chat_id, file_name, ruta_del_id):
+        file = open(file_name, "a+")
+        if(not(str(chat_id) + "\n" in file)):
+            file.seek(2, 0)
+            file.write(str(chat_id) + "\n")
+            file.write(ruta_del_id + "\n")
+            file.close()
+        else:
+            file.close()
+            file = open(file_name, "r")
+            info = file.readlines()
+            file.close()
+            file = open(file_name, "w")
+            find = False
+            for line in info:
+                if line != str(chat_id) + "\n":
+                    if not find:
+                        file.write(line)
+                    else:
+                        file.write(ruta_del_id + '\n')
+                        find = False
+                else:
+                    file.write(line)
+                    find = True
+            file.close()
+    '''
+    brief:  Método que obtiene la ruta del chat id actual
+    param:  chat_id:        id del chat
+    return: ruta de chat_id
+    '''
+    def getPwd(self, chat_id):
+        file = open("ruta_chats", "r")
+        info = file.readlines()
+        find = False
+        for line in info:
+            if find:
+                ruta = line
+                find = False
+            if line == str(chat_id) + "\n":
+                find = True
+
+        file.close()
+
+        return ruta.replace('\n', '')
+
     '''
     brief: Método que envia una respuesta al update
     param: update:     actualización que llamo el comando
            bot:        bot que esta en funcionamiento
     '''
     def cd(self, bot, update):
+        ruta_chats = open("ruta_chats", "a+")
         chat_id = update.message.chat_id
         mess_id = update.message.message_id
-        reply_markup = telegram.ReplyKeyboardMarkup(self.crearListaOpcionesCd(self.ruta_actual), one_time_keyboard = True, selective = True)
-        bot.sendMessage(chat_id=chat_id, text="Seleciona el directorio al que quieres ir \
-        o el archivo que quieres descargar",reply_to_message_id=mess_id, reply_markup=reply_markup)
+        if(not(str(chat_id) + "\n" in ruta_chats)):
+            self.chdir(chat_id, "ruta_chats", self.ruta_defecto)
+            ruta = self.ruta_defecto
+        else:
+            ruta = self.getPwd(chat_id)
 
-
+        reply_markup = telegram.ReplyKeyboardMarkup(self.crearListaOpcionesCd(ruta), one_time_keyboard = True, selective = True)
+        bot.sendMessage(chat_id=chat_id, text="Su ruta actual es: " + ruta + "\nSeleciona el directorio al que quieres ir o el archivo que quieres descargar",reply_to_message_id=mess_id, reply_markup=reply_markup)
+    '''
+    brief: Método que envia archivo a usuario
+    param: chat_id: id del chat a enviar archivo
+           archivo: ruta del archivo a enviar
+    '''
+    def sendFile(self, chat_id, archivo):
+        pass
     '''
     brief: Método que envia una respuesta al update
     param: update:     actualización que llamo el comando
@@ -123,11 +228,16 @@ class conbot:
         archivos    = subprocess.Popen("find " + ruta + " -mindepth 1 -maxdepth 1 -type f", shell=True, stdout=subprocess.PIPE).stdout.read()
         lista_directorios = directorios.split('\n')
         #Ir hacia atrás
-        lista_directorios.append(telegram.Emoji.BACK_WITH_LEFTWARDS_ARROW_ABOVE + ' .. ' + telegram.Emoji.BACK_WITH_LEFTWARDS_ARROW_ABOVE)
+        lista_directorios.append(self.atras)
         lista_archivos    = archivos.split('\n')
         lista = []
         lista.append(lista_directorios)
         lista.append(lista_archivos)
+
+        if '\ ' in ruta:
+            ruta = ruta.replace('\ ', ' ')
+        print ruta
+
         #Para eliminar el ./ y la ruta antes de cada nombre de carpeta/archivo que retorna find. Así se limpia un poco la data
         for indice_lista in range(len(lista)):
             for dir, indice in zip(lista[indice_lista], range(len(lista[indice_lista]))):
@@ -152,7 +262,7 @@ class conbot:
                 markup_opc.append(list())
                 #pos_lista_in += 1
                 for indice_lis_dir in range(grupos):
-                    if indice_individual <= len(lista_archivos_directorios[indice]):
+                    if indice_individual < len(lista_archivos_directorios[indice]):
                         markup_opc[len(markup_opc) - 1].append(lista_archivos_directorios[indice][indice_individual].decode('utf-8'))
                     indice_individual += 1
 
