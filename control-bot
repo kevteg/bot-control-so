@@ -13,13 +13,10 @@ class conbot:
         ch = logging.StreamHandler(sys.stdout)
         ch.setLevel(logging.DEBUG)
         formatter = \
-            logging.Formatter('Hora: %(asctime)s \
-                               Objeto: %(name)s \
-                               Tipo de dato: %(levelname)s \
-                               Mensaje: %(message)s')
+            logging.Formatter('\nActualización:\nHora: %(asctime)s \nObjeto: %(name)s \nTipo de dato: %(levelname)s \nMensaje: %(message)s')
         ch.setFormatter(formatter)
         root.addHandler(ch)
-        logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(__name__)
         self.ruta_defecto = "/home/keeeevin"
         self.comandos = {'start': self.start,
                     'help': self.help,
@@ -39,6 +36,9 @@ class conbot:
                                                 sudo - Guardar contraseña de super usuario\
                                                 "
         self.atras = telegram.Emoji.BACK_WITH_LEFTWARDS_ARROW_ABOVE + '(..)' + telegram.Emoji.BACK_WITH_LEFTWARDS_ARROW_ABOVE
+        self.dir = telegram.Emoji.FILE_FOLDER + " Directorios " + telegram.Emoji.FILE_FOLDER
+        self.arc = telegram.Emoji.NEWSPAPER + " Archivos " + telegram.Emoji.NEWSPAPER
+        self.nombre_bot = "controlBot"
         self.main()
 
     '''
@@ -83,12 +83,13 @@ class conbot:
     '''
     def messageIsDirArc(self, chat_id, message):
         file = open("ruta_chats", "a+")
-        if(str(chat_id) + "\n" in file):
-            opciones_ruta = self.contenidoRuta(self.getPwd(chat_id))
-            for indice in range(len(opciones_ruta)):
-                for objeto in opciones_ruta[indice]:
-                    if message == objeto:
-                        return indice
+        if (message != self.dir and message != self.arc):
+            if(str(chat_id) + "\n" in file):
+                opciones_ruta = self.contenidoRuta(self.getPwd(chat_id))
+                for indice in range(len(opciones_ruta)):
+                    for objeto in opciones_ruta[indice]:
+                        if message == objeto:
+                            return indice
         return -1
 
 
@@ -98,29 +99,45 @@ class conbot:
            bot:        bot que esta en funcionamiento
     '''
     def echo(self, bot, update):
-        chat_id = update.message.chat_id
-        mess_id = update.message.message_id
-        message = update.message.text.encode('utf-8')
-        if(self.messageIsDirArc(chat_id, message) == 0):
-            if ' ' in message:
-                message = message.replace(' ', '\ ')
+        self.notiInfo(update)
+        chat_id  = update.message.chat_id
+        mess_id  = update.message.message_id
+        document = update.message.document
 
-            if message != self.atras:
-                nueva_ruta = self.getPwd(chat_id) + '/' + message
-            else:
-                directorios = (self.getPwd(chat_id)).split('/')
-                nueva_ruta = ''
-                for indice in range(1, (len(directorios) - 1)):
-                    print directorios[indice]
-                    nueva_ruta += '/' + directorios[indice]
-
-            self.chdir(chat_id, "ruta_chats", nueva_ruta)
-            reply_markup = telegram.ReplyKeyboardMarkup(self.crearListaOpcionesCd(nueva_ruta), one_time_keyboard = True, selective = True)
-            bot.sendMessage(chat_id=chat_id, text="Su nueva ruta es: " + nueva_ruta,reply_to_message_id=mess_id, reply_markup=reply_markup)
-        elif(self.messageIsDirArc(chat_id, message) == 1):
-            self.sendFile(chat_id, message)
+        if document != None:
+            ruta_actual = self.getPwd(chat_id)
+            print "Documento: " + document.file_id
+            bot.getFile(document.file_id).download(document.file_name)
+            subprocess.Popen("mv " + document.file_name + " " + ruta_actual.decode('utf-8'), shell=True, stdout=subprocess.PIPE)
+            self.enviarMensaje(bot, update, "Su archivo, " + document.file_name + ", ha sido puesto en " + ruta_actual.decode('utf-8'))
         else:
-            bot.sendMessage(update.message.chat_id, text=update.message.text)
+            message = update.message.text.encode('utf-8')
+            if(self.messageIsDirArc(chat_id, message) == 0):
+                if ' ' in message:
+                    message = message.replace(' ', '\ ')
+
+                if message != self.atras:
+                    ruta_actual = self.getPwd(chat_id)
+                    if ruta_actual == '/':
+                        nueva_ruta = ruta_actual + message
+                    else:
+                        nueva_ruta = ruta_actual + '/' + message
+                else:
+                    directorios = (self.getPwd(chat_id)).split('/')
+                    nueva_ruta = ''
+                    #Verificar que no se esta al inicio del árbol
+                    if len(directorios) > 2:
+                        for indice in range(1, (len(directorios) - 1)):
+                            nueva_ruta += '/' + directorios[indice]
+                    else:
+                        nueva_ruta = '/'
+                self.chdir(chat_id, "ruta_chats", nueva_ruta)
+                reply_markup = telegram.ReplyKeyboardMarkup(self.crearListaOpcionesCd(nueva_ruta), one_time_keyboard = True, selective = True)
+                self.enviarMensaje(bot, update, "Su nueva ruta es: " + nueva_ruta, reply_markup=reply_markup)
+            elif(self.messageIsDirArc(chat_id, message) == 1):
+                self.sendFile(bot, update, message)
+            else:
+                bot.sendMessage(update.message.chat_id, text=update.message.text)
 
     '''
     brief: Método que cambia o agrega el directorio del usuario chat_id
@@ -179,9 +196,9 @@ class conbot:
            bot:        bot que esta en funcionamiento
     '''
     def cd(self, bot, update):
+        self.notiInfo(update)
+        chat_id        = update.message.chat_id
         ruta_chats = open("ruta_chats", "a+")
-        chat_id = update.message.chat_id
-        mess_id = update.message.message_id
         if(not(str(chat_id) + "\n" in ruta_chats)):
             self.chdir(chat_id, "ruta_chats", self.ruta_defecto)
             ruta = self.ruta_defecto
@@ -189,34 +206,50 @@ class conbot:
             ruta = self.getPwd(chat_id)
 
         reply_markup = telegram.ReplyKeyboardMarkup(self.crearListaOpcionesCd(ruta), one_time_keyboard = True, selective = True)
-        bot.sendMessage(chat_id=chat_id, text="Su ruta actual es: " + ruta + "\nSeleciona el directorio al que quieres ir o el archivo que quieres descargar",reply_to_message_id=mess_id, reply_markup=reply_markup)
+        self.enviarMensaje(bot, update, "Su ruta actual es: " + ruta.decode('utf-8') + "\nSeleciona el directorio al que quieres ir o el archivo que quieres descargar", reply_markup=reply_markup)
     '''
     brief: Método que envia archivo a usuario
     param: chat_id: id del chat a enviar archivo
            archivo: ruta del archivo a enviar
     '''
-    def sendFile(self, chat_id, archivo):
-        pass
+    def sendFile(self, bot, update,  nombre_archivo):
+        chat_id  = update.message.chat_id
+        ruta_usuario = self.getPwd(chat_id)
+        ruta_archivo = ruta_usuario + '/' + nombre_archivo
+        reply_markup = telegram.ReplyKeyboardMarkup(self.crearListaOpcionesCd(ruta_usuario), one_time_keyboard = True, selective = True)
+        self.enviarMensaje(bot, update, "Enviaré este archivo (El envio puede tardar): ".decode("utf-8") + nombre_archivo + ".\nSu ruta actual es: " + ruta_usuario.decode('utf-8'), reply_markup=reply_markup)
+        bot.sendChatAction(chat_id=chat_id, action=telegram.ChatAction.UPLOAD_DOCUMENT)
+        bot.sendDocument(chat_id=chat_id, document=open(ruta_archivo, 'r'))
+
+
+
     '''
     brief: Método que envia una respuesta al update
     param: update:     actualización que llamo el comando
            bot:        bot que esta en funcionamiento
     '''
     def pwd(self, bot, update):
-        bot.sendMessage(update.message.chat_id, text=update.message.text)
+        self.notiInfo(update)
+        chat_id = update.message.chat_id
+        ruta_usuario = self.getPwd(chat_id)
+        reply_markup = telegram.ReplyKeyboardMarkup(self.crearListaOpcionesCd(ruta_usuario), one_time_keyboard = True, selective = True)
+        self.enviarMensaje(bot, update, "Su ruta actual es " + ruta_usuario.decode("utf-8"), reply_markup=reply_markup)
+
     '''
     brief: Método que envia una respuesta al update
     param: update:     actualización que llamo el comando
            bot:        bot que esta en funcionamiento
     '''
     def comando(self, bot, update):
+        self.notiInfo(update)
         bot.sendMessage(update.message.chat_id, text=update.message.text)
     '''
     brief: Método que envia una respuesta al update
     param: update:     actualización que llamo el comando
            bot:        bot que esta en funcionamiento
     '''
-    def sudo(self, bot, update):
+    def sudo(self, bot, update, ):
+        self.notiInfo(update)
         bot.sendMessage(update.message.chat_id, text=update.message.text)
     '''
     brief: Método que retorna una lista de directorios y archivos de la ubicación ruta
@@ -234,15 +267,17 @@ class conbot:
         lista.append(lista_directorios)
         lista.append(lista_archivos)
 
+        #print "RUTA: " + ruta
         if '\ ' in ruta:
             ruta = ruta.replace('\ ', ' ')
-        print ruta
 
         #Para eliminar el ./ y la ruta antes de cada nombre de carpeta/archivo que retorna find. Así se limpia un poco la data
         for indice_lista in range(len(lista)):
             for dir, indice in zip(lista[indice_lista], range(len(lista[indice_lista]))):
-                if ruta + '/' in lista[indice_lista][indice]:
-                    lista[indice_lista][indice] = lista[indice_lista][indice].replace(ruta + '/', '')
+                if ruta + '/' in dir:
+                    lista[indice_lista][indice] = dir.replace(ruta + '/', '')
+                elif ruta == '/':
+                    lista[indice_lista][indice] = dir.replace(ruta, '')
             #.Archivos ocultos de último
             lista[indice_lista].sort()
             lista[indice_lista].reverse()
@@ -251,7 +286,7 @@ class conbot:
     def crearListaOpcionesCd(self, ruta):
         markup_opc = []
         grupos = 3 #grupos de tres elementos (Funciona a partir de 3    )
-        lista_data = [[telegram.Emoji.FILE_FOLDER + " Directorios " + telegram.Emoji.FILE_FOLDER], [telegram.Emoji.NEWSPAPER + " Archivos " + telegram.Emoji.NEWSPAPER]]
+        lista_data = [[self.dir], [self.arc]]
         lista_archivos_directorios = self.contenidoRuta(ruta)
         pos_lista_in = 0
 
@@ -260,7 +295,6 @@ class conbot:
             indice_individual = 0
             for indice_grupo in range( int(round(float(len(lista_archivos_directorios[indice])) / grupos))):
                 markup_opc.append(list())
-                #pos_lista_in += 1
                 for indice_lis_dir in range(grupos):
                     if indice_individual < len(lista_archivos_directorios[indice]):
                         markup_opc[len(markup_opc) - 1].append(lista_archivos_directorios[indice][indice_individual].decode('utf-8'))
@@ -278,19 +312,31 @@ class conbot:
            error:      error a mostrar
     '''
     def error(self, bot, update, error):
-        logger.warn('Update "%s" caused error "%s"' % (update, error))
-
+        self.logger.warn('Update "%s" caused error "%s"' % (update, error))
+    '''
+    brief: Método que muestra la información que envia un usuari
+    param: update:     actualización que muestra el método
+    '''
+    def notiInfo(self, update):
+        chat_id        = update.message.chat_id
+        nombre_usuario = update.message.from_user.first_name
+        alias          = update.message.from_user.username
+        message        = update.message.text.encode('utf-8')
+        print  "\n" + nombre_usuario.encode('utf-8') + " (" + alias.encode('utf-8') + "), dice: " + message
     '''
     brief: Método que envia una respuesta al update
     param: update:     actualización que llamo el comando
            respuesta:  respuesta a enviar
     '''
-    def enviarMensaje(self, bot, update, respuesta):
-        chat_id = update.message.chat_id
+    def enviarMensaje(self, bot, update, respuesta, reply_markup=None):
+        chat_id        = update.message.chat_id
+        mess_id        = update.message.message_id
         nombre_usuario = update.message.from_user.first_name
         alias          = update.message.from_user.username
-        print "Protobot dice a " + nombre_usuario.encode('utf-8') + " (" + alias.encode('utf-8') + "): " + respuesta
-        reply_markup = telegram.ReplyKeyboardHide(hide_keyboard = True)
+        print self.nombre_bot + " dice a " + nombre_usuario.encode('utf-8') + " (" + alias.encode('utf-8') + "): " + respuesta
+        if reply_markup is None:
+            reply_markup = telegram.ReplyKeyboardHide(hide_keyboard = True)
+
         bot.sendChatAction(chat_id=chat_id, action=telegram.ChatAction.TYPING)
-        bot.sendMessage(chat_id=chat_id, text=respuesta, reply_markup=reply_markup)
+        bot.sendMessage(chat_id=chat_id, reply_to_message_id=mess_id, text=respuesta, reply_markup=reply_markup)
 robot = conbot()
