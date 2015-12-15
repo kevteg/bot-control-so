@@ -5,6 +5,7 @@ import telegram
 import logging
 import sys
 import subprocess
+import os
 
 class conbot:
     def __init__ (self):
@@ -24,17 +25,14 @@ class conbot:
                     'pwd': self.pwd,
                     'comando': self.comando,
                     'sudo': self.sudo}
-        usuario = "@keeeevin"
-        self.mensaje_saludo = "Hola. Soy un bot de control para la computadora de " + usuario + ".\nDe tener acceso podras navegar, \
-                                descargar datos y ejecutar comandos en su computadora"
-        self.mensaje_ayuda  = self.mensaje_saludo + "\n\nMis comandos son: \
-                                                help - Ayuda del bot\
-                                                cd - Mostrar carpetas y archivos para cambiar ubicacion actual       \
-                                                ls - Mostrar carpetas y archivos para cambiar ubicacion actual       \
-                                                pwd - Mostrar ruta actual\
-                                                comando - Ejecutar un comando\
-                                                sudo - Guardar contraseña de super usuario\
-                                                "
+        self.usuario = "@keeeevin"
+        self.mensaje_saludo = "Hola. Soy un bot de control para la computadora de " + self.usuario + ".\nDe tener acceso podrás: \nnavegar entre directorios, descargar y agregar archivos, y ejecutar comandos en cualquier ruta"
+        self.mensaje_ayuda = "\n\nMis comandos son: \n\
+        help - Ayuda del bot\n\
+        cd - Mostrar carpetas y archivos para cambiar ubicacion actual\n\
+        pwd - Mostrar ruta actual\n\
+        comando - Ejecutar un comando\n\
+        sudo - Guardar contraseña de super usuario (No disponible aún)\n"
         self.atras = telegram.Emoji.BACK_WITH_LEFTWARDS_ARROW_ABOVE + '(..)' + telegram.Emoji.BACK_WITH_LEFTWARDS_ARROW_ABOVE
         self.dir = telegram.Emoji.FILE_FOLDER + " Directorios " + telegram.Emoji.FILE_FOLDER
         self.arc = telegram.Emoji.NEWSPAPER + " Archivos " + telegram.Emoji.NEWSPAPER
@@ -74,23 +72,33 @@ class conbot:
     def help(self, bot, update):
         self.enviarMensaje(bot, update, self.mensaje_ayuda)
     '''
-    brief: Método que verifica que respuesta de un usuario este en opciones a escoger
+    brief: Método que verifica que respuesta de un usuario sea un directorio, archivo o comando
     param: chat_id:     id del chat
            message:     mensaje que envia usuario
     return: -1 si no esta el mensaje o si usuario no ha usado cd
              0 si es directorio
              1 si es archivo
+             2 es comando
     '''
-    def messageIsDirArc(self, chat_id, message):
-        file = open("ruta_chats", "a+")
+    def messageIsDirArcCom(self, chat_id, message):
+        retorno = -1
         if (message != self.dir and message != self.arc):
+            file = open("ruta_chats", "a+")
+            #Verificar que sea un directorio o un archivo
             if(str(chat_id) + "\n" in file):
                 opciones_ruta = self.contenidoRuta(self.getPwd(chat_id))
                 for indice in range(len(opciones_ruta)):
                     for objeto in opciones_ruta[indice]:
                         if message == objeto:
-                            return indice
-        return -1
+                            retorno = indice
+                            break
+            file.close()
+            #Verificar que usuario este en lista de personas que solicitaron un comando
+            file = open("comandos_por_realizar", "a+")
+            if(str(chat_id) + "\n" in file):
+                retorno = 2
+
+        return retorno
 
 
     '''
@@ -104,7 +112,8 @@ class conbot:
         mess_id  = update.message.message_id
         document = update.message.document
 
-        if document != None:
+
+        if document != None: #El usuario quiere agregar un archivo a una dirección
             ruta_actual = self.getPwd(chat_id)
             print "Documento: " + document.file_id
             bot.getFile(document.file_id).download(document.file_name)
@@ -112,7 +121,8 @@ class conbot:
             self.enviarMensaje(bot, update, "Su archivo, " + document.file_name + ", ha sido puesto en " + ruta_actual.decode('utf-8'))
         else:
             message = update.message.text.encode('utf-8')
-            if(self.messageIsDirArc(chat_id, message) == 0):
+            tipo_mensaje = self.messageIsDirArcCom(chat_id, message)
+            if(tipo_mensaje == 0):
                 if ' ' in message:
                     message = message.replace(' ', '\ ')
 
@@ -134,10 +144,12 @@ class conbot:
                 self.chdir(chat_id, "ruta_chats", nueva_ruta)
                 reply_markup = telegram.ReplyKeyboardMarkup(self.crearListaOpcionesCd(nueva_ruta), one_time_keyboard = True, selective = True)
                 self.enviarMensaje(bot, update, "Su nueva ruta es: " + nueva_ruta, reply_markup=reply_markup)
-            elif(self.messageIsDirArc(chat_id, message) == 1):
+            elif(tipo_mensaje == 1):
                 self.sendFile(bot, update, message)
+            elif(tipo_mensaje == 2):
+                self.procesarComando(bot, update, message)
             else:
-                bot.sendMessage(update.message.chat_id, text=update.message.text)
+                self.help(bot, update)
 
     '''
     brief: Método que cambia o agrega el directorio del usuario chat_id
@@ -179,6 +191,7 @@ class conbot:
         file = open("ruta_chats", "r")
         info = file.readlines()
         find = False
+        ruta = ''
         for line in info:
             if find:
                 ruta = line
@@ -187,8 +200,10 @@ class conbot:
                 find = True
 
         file.close()
-
-        return ruta.replace('\n', '')
+        if ruta != None:
+            return ruta.replace('\n', '')
+        else:
+            return None
 
     '''
     brief: Método que envia una respuesta al update
@@ -206,7 +221,7 @@ class conbot:
             ruta = self.getPwd(chat_id)
 
         reply_markup = telegram.ReplyKeyboardMarkup(self.crearListaOpcionesCd(ruta), one_time_keyboard = True, selective = True)
-        self.enviarMensaje(bot, update, "Su ruta actual es: " + ruta.decode('utf-8') + "\nSeleciona el directorio al que quieres ir o el archivo que quieres descargar", reply_markup=reply_markup)
+        self.enviarMensaje(bot, update, "Su ruta actual es: " + ruta.decode('utf-8') + "\nSeleciona el directorio al que quieres ir o el archivo que quieres descargar. \nPara agregar archivos en esta ruta envía el archivo".decode('utf-8'), reply_markup=reply_markup)
     '''
     brief: Método que envia archivo a usuario
     param: chat_id: id del chat a enviar archivo
@@ -220,8 +235,6 @@ class conbot:
         self.enviarMensaje(bot, update, "Enviaré este archivo (El envio puede tardar): ".decode("utf-8") + nombre_archivo + ".\nSu ruta actual es: " + ruta_usuario.decode('utf-8'), reply_markup=reply_markup)
         bot.sendChatAction(chat_id=chat_id, action=telegram.ChatAction.UPLOAD_DOCUMENT)
         bot.sendDocument(chat_id=chat_id, document=open(ruta_archivo, 'r'))
-
-
 
     '''
     brief: Método que envia una respuesta al update
@@ -242,7 +255,69 @@ class conbot:
     '''
     def comando(self, bot, update):
         self.notiInfo(update)
-        bot.sendMessage(update.message.chat_id, text=update.message.text)
+        chat_id = update.message.chat_id
+        commands = open("comandos_por_realizar", "a+")
+        ruta_usuario = self.getPwd(chat_id)
+        if ruta_usuario != None:
+            if(not(str(chat_id) + "\n" in commands)):
+                commands.seek(2, 0)
+                commands.write(str(chat_id) + "\n")
+                commands.close()
+            self.enviarMensaje(bot, update, "¿Qué comando quieres ejecutar? (Se ejecutará con los permisos de ".decode('utf-8') + self.usuario +  ") en la ruta " + ruta_usuario.decode('utf-8'))
+        else:
+            self.enviarMensaje(bot, update, "No tienes ruta para ejecutar comandos. \n Para obtener una primero usa el comando /cd")
+    '''
+    brief: Método que crea un fork para ejecutar un comando en la ruta de usuario
+    param: bot: para enviar mensaje de confirmación a usuario
+           update: para obtener chat_id de usuario que quiere ejecutar comando y enviar mensaje
+           comando: comando a ejecutar
+    '''
+    def procesarComando(self, bot, update, comando):
+        chat_id = update.message.chat_id
+        ruta_usuario = self.getPwd(chat_id)
+
+        self.eliminarIdLista(chat_id, "comandos_por_realizar")
+        pid_nuevo = os.fork()
+        if pid_nuevo == 0:
+            self.enviarMensaje(bot, update, "Al finalizar el comando se notificará su valor de retorno")
+            valor_retorno = self.ejecutarComando(ruta_usuario, comando)
+            if valor_retorno == 0: #comando funciono
+                self.enviarMensaje(bot, update, "Comando ha funcionado correctamente, retornó: ".decode("utf-8") + str(valor_retorno))
+            else:
+                self.enviarMensaje(bot, update, "Comando no ha funcionado correctamente, retornó: ".decode("utf-8") + str(valor_retorno))
+
+        else:
+            print "Se ha creado fork para ejecución de comando"
+
+    '''
+    brief: Método que ejecuta un comando en la ruta de usuario
+    param: ruta:    ruta donde se ejecutara comando
+           comando: comando a ejecutar
+    '''
+    def ejecutarComando(self, ruta, comando):
+        print "Se procederá a ejecutar comando. PID del comando: ", os.getpid()
+        print ruta
+        print comando
+        child = subprocess.Popen("cd " + ruta + " && " + comando, shell=True, stdout=subprocess.PIPE)
+        streamdata = child.communicate()[0]
+
+        return child.returncode
+
+    '''
+    brief: Método que elimina un chat_id de la lista <nombre_lista>
+    param: chat_id:      id a eliminar
+           nombre_lista: nombre de la lista
+    '''
+    def eliminarIdLista(self, chat_id, nombre_lista):
+        lista = open(nombre_lista, "r")
+        ids = lista.readlines()
+        lista.close()
+        lista = open(nombre_lista, "w")
+        for i_id in ids:
+            if i_id != str(chat_id) + "\n":
+                cola.write(i_id)
+        lista.close()
+
     '''
     brief: Método que envia una respuesta al update
     param: update:     actualización que llamo el comando
@@ -253,8 +328,7 @@ class conbot:
         bot.sendMessage(update.message.chat_id, text=update.message.text)
     '''
     brief: Método que retorna una lista de directorios y archivos de la ubicación ruta
-    param: ruta: posición de que retornara
-
+    param: ruta: ruta que se analizará
     '''
     def contenidoRuta(self, ruta):
         directorios = subprocess.Popen("find " + ruta + " -mindepth 1 -maxdepth 1 -type d", shell=True, stdout=subprocess.PIPE).stdout.read()
@@ -282,7 +356,10 @@ class conbot:
             lista[indice_lista].sort()
             lista[indice_lista].reverse()
         return lista
-
+    '''
+    brief: Método que retorna una lista de opciones de ruta que se enviará a usuario
+    param: ruta: ruta que se analizará
+    '''
     def crearListaOpcionesCd(self, ruta):
         markup_opc = []
         grupos = 3 #grupos de tres elementos (Funciona a partir de 3    )
@@ -312,13 +389,12 @@ class conbot:
            error:      error a mostrar
     '''
     def error(self, bot, update, error):
-        self.logger.warn('Update "%s" caused error "%s"' % (update, error))
+        self.logger.warn('Actualizacion "%s" causo un error "%s"' % (update, error))
     '''
     brief: Método que muestra la información que envia un usuari
     param: update:     actualización que muestra el método
     '''
     def notiInfo(self, update):
-        chat_id        = update.message.chat_id
         nombre_usuario = update.message.from_user.first_name
         alias          = update.message.from_user.username
         message        = update.message.text.encode('utf-8')
