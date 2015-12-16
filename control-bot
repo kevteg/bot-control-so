@@ -286,7 +286,7 @@ class conbot:
         pid_nuevo = os.fork()
         if pid_nuevo == 0:
 
-            valor_retorno = self.ejecutarComando(ruta_usuario, comando)
+            valor_retorno = self.ejecutarComando(bot, update, ruta_usuario, comando)
             if valor_retorno == 0: #comando funciono
                 self.enviarMensaje(bot, update, "Comando \"" + comando + "\" ha funcionado correctamente, retornó: ".decode("utf-8") + str(valor_retorno))
             else:
@@ -300,7 +300,7 @@ class conbot:
     param: ruta:    ruta donde se ejecutara comando
            comando: comando a ejecutar
     '''
-    def ejecutarComando(self,update, ruta, comando):
+    def ejecutarComando(self, bot, update, ruta, comando):
         print "Se procederá a ejecutar comando. PID del comando: ", os.getpid()
         self.enviarMensaje(bot, update, "Al finalizar el comando se notificará su valor de retorno PID: " + str(os.getpid()))
         print ruta
@@ -322,7 +322,7 @@ class conbot:
         lista = open(nombre_lista, "w")
         for i_id in ids:
             if i_id != str(chat_id) + "\n":
-                cola.write(i_id)
+                lista.write(i_id)
         lista.close()
 
     '''
