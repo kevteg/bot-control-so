@@ -118,7 +118,7 @@ class conbot:
 
         if document != None: #El usuario quiere agregar un archivo a una dirección
             ruta_actual = self.getPwd(chat_id)
-            print "Documento: " + document.file_id
+            print("Documento: " + str(document.file_id))
             bot.getFile(document.file_id).download(document.file_name)
             subprocess.Popen("mv " + document.file_name + " " + ruta_actual.decode('utf-8'), shell=True, stdout=subprocess.PIPE)
             self.enviarMensaje(bot, update, "Su archivo, " + document.file_name + ", ha sido puesto en " + ruta_actual.decode('utf-8'))
