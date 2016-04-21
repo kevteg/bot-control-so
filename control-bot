@@ -293,7 +293,7 @@ class conbot:
                 self.enviarMensaje(bot, update, "Comando \"" + comando + "\" no ha funcionado correctamente, retornó: ".decode("utf-8") + str(valor_retorno))
 
         else:
-            print "Se ha creado fork para ejecución de comando"
+            print("Se ha creado fork para ejecución de comando")
 
     '''
     brief: Método que ejecuta un comando en la ruta de usuario
@@ -301,10 +301,10 @@ class conbot:
            comando: comando a ejecutar
     '''
     def ejecutarComando(self, bot, update, ruta, comando):
-        print "Se procederá a ejecutar comando. PID del comando: ", os.getpid()
+        print("Se procederá a ejecutar comando. PID del comando: " + str(os.getpid()))
         self.enviarMensaje(bot, update, "Al finalizar el comando se notificará su valor de retorno PID: " + str(os.getpid()))
-        print ruta
-        print comando
+        print(ruta)
+        print(comando)
         child = subprocess.Popen("cd " + ruta + " && " + comando, shell=True, stdout=subprocess.PIPE)
         streamdata = child.communicate()[0]
 
@@ -405,7 +405,7 @@ class conbot:
         nombre_usuario = update.message.from_user.first_name
         alias          = update.message.from_user.username
         message        = update.message.text.encode('utf-8')
-        print  "\n" + nombre_usuario.encode('utf-8') + " (" + alias.encode('utf-8') + "), dice: " + message
+        print("\n" + nombre_usuario.encode('utf-8') + " (" + alias.encode('utf-8') + "), dice: " + message)
     '''
     brief: Método que envia una respuesta al update
     param: update:     actualización que llamo el comando
@@ -416,7 +416,7 @@ class conbot:
         mess_id        = update.message.message_id
         nombre_usuario = update.message.from_user.first_name
         alias          = update.message.from_user.username
-        print self.nombre_bot + " dice a " + nombre_usuario.encode('utf-8') + " (" + alias.encode('utf-8') + "): " + respuesta
+        print(self.nombre_bot + " dice a " + nombre_usuario.encode('utf-8') + " (" + alias.encode('utf-8') + "): " + respuesta)
         if reply_markup is None:
             reply_markup = telegram.ReplyKeyboardHide(hide_keyboard = True)
 
