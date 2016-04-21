@@ -51,7 +51,7 @@ class conbot:
         # Registrar los controladores de comandos
         dp = updater.dispatcher
         #Agregar comandos
-        for comando, metodo in self.comandos.iteritems():
+        for comando, metodo in self.comandos.items():
             dp.addTelegramCommandHandler(comando, metodo)
         # Si no se recibe un comando
         dp.addTelegramMessageHandler(self.echo)
