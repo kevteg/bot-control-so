@@ -405,7 +405,7 @@ class conbot:
         nombre_usuario = update.message.from_user.first_name
         alias          = update.message.from_user.username
         message        = update.message.text.encode('utf-8')
-        print("\n" + str(nombre_usuario.encode('utf-8')) + " (" + str(alias.encode('utf-8')) + "), dice: " + message)
+        print("\n" + str(nombre_usuario.encode('utf-8')) + " (" + str(alias.encode('utf-8')) + "), dice: " + str(message))
     '''
     brief: Método que envia una respuesta al update
     param: update:     actualización que llamo el comando
